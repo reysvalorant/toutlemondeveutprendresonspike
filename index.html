@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Quiz Valorant</title>
+
+<style>
+body {
+    background: #0f1923;
+    color: #ece8e1;
+    font-family: Arial;
+    text-align: center;
+}
+
+h1 { color: #ff4655; }
+
+button {
+    background: #ff4655;
+    border: none;
+    padding: 10px;
+    margin: 5px;
+    color: white;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+#game { display:none; }
+
+.admin-panel {
+    margin-top:20px;
+    border-top:1px solid #ff4655;
+    padding-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎯 Quiz Valorant</h1>
+
+<div id="login">
+    <input id="pseudo" placeholder="Pseudo">
+    <br><br>
+    <label>
+        <input type="checkbox" id="isAdmin"> Mode Admin
+    </label>
+    <br><br>
+    <button onclick="join()">Rejoindre</button>
+</div>
+
+<div id="game">
+    <h2 id="playerName"></h2>
+
+    <button onclick="buzz()">🔴 BUZZER</button>
+
+    <h3>Ordre des buzz :</h3>
+    <ul id="buzzList"></ul>
+
+    <h3>Classement :</h3>
+    <ul id="scoreList"></ul>
+
+    <div id="adminPanel" class="admin-panel" style="display:none;">
+        <h3>🎛 ADMIN PANEL</h3>
+        <button onclick="resetBuzz()">Reset Buzz</button>
+        <div id="adminScores"></div>
+    </div>
+</div>
+
+<!-- 🔊 Son buzzer -->
+<audio id="buzzSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// 🔥 TA CONFIG FIREBASE
+const firebaseConfig = {
+  apiKey: "AIzaSyA1BbImZx-cVOL82H4jO-8IRhpwGMfeSL0",
+  authDomain: "tlmvpss.firebaseapp.com",
+  projectId: "tlmvpss",
+  storageBucket: "tlmvpss.firebasestorage.app",
+  messagingSenderId: "487399924346",
+  appId: "1:487399924346:web:665f4c995b78b6cb8e11c3",
+  measurementId: "G-20J4M5R625"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let pseudo = "";
+let hasBuzzed = false;
+let isAdmin = false;
+
+// 👉 rejoindre
+window.join = function() {
+    pseudo = document.getElementById("pseudo").value;
+    isAdmin = document.getElementById("isAdmin").checked;
+
+    if (!pseudo) return alert("Pseudo requis");
+
+    document.getElementById("login").style.display = "none";
+    document.getElementById("game").style.display = "block";
+    document.getElementById("playerName").innerText = pseudo;
+
+    if (!isAdmin) {
+        set(ref(db, "players/" + pseudo), { score: 0 });
+    } else {
+        document.getElementById("adminPanel").style.display = "block";
+    }
+
+    listenBuzz();
+    listenScores();
+}
+
+// 👉 buzzer
+window.buzz = function() {
+    if (hasBuzzed || isAdmin) return;
+
+    hasBuzzed = true;
+
+    document.getElementById("buzzSound").play();
+
+    push(ref(db, "buzzers"), {
+        name: pseudo,
+        time: Date.now()
+    });
+}
+
+// 👉 reset buzz
+window.resetBuzz = function() {
+    remove(ref(db, "buzzers"));
+    hasBuzzed = false;
+}
+
+// 👉 écoute buzz
+function listenBuzz() {
+    onValue(ref(db, "buzzers"), snapshot => {
+        const list = document.getElementById("buzzList");
+        list.innerHTML = "";
+
+        let data = snapshot.val();
+        if (!data) return;
+
+        let arr = Object.values(data);
+        arr.sort((a,b)=>a.time-b.time);
+
+        arr.forEach((b,i)=>{
+            let li = document.createElement("li");
+            li.innerText = `${i+1}. ${b.name}`;
+            list.appendChild(li);
+        });
+    });
+}
+
+// 👉 scores + admin
+function listenScores() {
+    onValue(ref(db, "players"), snapshot => {
+        const list = document.getElementById("scoreList");
+        const adminDiv = document.getElementById("adminScores");
+
+        list.innerHTML = "";
+        adminDiv.innerHTML = "";
+
+        let data = snapshot.val();
+        if (!data) return;
+
+        let arr = Object.entries(data);
+        arr.sort((a,b)=>b[1].score - a[1].score);
+
+        arr.forEach(([name,obj])=>{
+            let li = document.createElement("li");
+            li.innerText = `${name} : ${obj.score}`;
+            list.appendChild(li);
+
+            if (isAdmin) {
+                let btn = document.createElement("button");
+                btn.innerText = "+1 " + name;
+                btn.onclick = () => {
+                    update(ref(db, "players/" + name), {
+                        score: obj.score + 1
+                    });
+                };
+                adminDiv.appendChild(btn);
+            }
+        });
+    });
+}
+
+// 🚨 anti-fuite onglet
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+        alert("⚠️ Tu as quitté la page !");
+    }
+});
+
+// 🚨 quitter = suppression joueur
+window.addEventListener("beforeunload", () => {
+    if (pseudo && !isAdmin) {
+        remove(ref(db, "players/" + pseudo));
+    }
+});
+</script>
+
+</body>
+</html>
