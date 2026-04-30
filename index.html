@@ -6,22 +6,22 @@
 
 <style>
 body {
-    background: #0f1923;
-    color: #ece8e1;
-    font-family: Arial;
-    text-align: center;
+    background:#0f1923;
+    color:#ece8e1;
+    font-family:Arial;
+    text-align:center;
 }
 
-h1 { color: #ff4655; }
+h1 { color:#ff4655; }
 
 button {
-    background: #ff4655;
-    border: none;
-    padding: 10px;
-    margin: 5px;
-    color: white;
-    cursor: pointer;
-    border-radius: 6px;
+    background:#ff4655;
+    border:none;
+    padding:10px;
+    margin:5px;
+    color:white;
+    cursor:pointer;
+    border-radius:6px;
 }
 
 #game { display:none; }
@@ -30,6 +30,9 @@ button {
     margin-top:20px;
     border-top:1px solid #ff4655;
     padding-top:10px;
+}
+.inactive {
+    color: orange;
 }
 </style>
 </head>
@@ -61,19 +64,21 @@ button {
 
     <div id="adminPanel" class="admin-panel" style="display:none;">
         <h3>🎛 ADMIN PANEL</h3>
+
+        <h4>⚠ Activité joueurs</h4>
+        <ul id="activityList"></ul>
+
         <button onclick="resetBuzz()">Reset Buzz</button>
         <div id="adminScores"></div>
     </div>
 </div>
 
-<!-- 🔊 Son buzzer -->
 <audio id="buzzSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// 🔥 TA CONFIG FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyA1BbImZx-cVOL82H4jO-8IRhpwGMfeSL0",
   authDomain: "tlmvpss.firebaseapp.com",
@@ -87,116 +92,153 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-let pseudo = "";
-let hasBuzzed = false;
-let isAdmin = false;
+let pseudo="";
+let isAdmin=false;
+let hasBuzzed=false;
 
-// 👉 rejoindre
+// JOIN
 window.join = function() {
     pseudo = document.getElementById("pseudo").value;
     isAdmin = document.getElementById("isAdmin").checked;
 
-    if (!pseudo) return alert("Pseudo requis");
+    if(!pseudo) return alert("Pseudo requis");
 
-    document.getElementById("login").style.display = "none";
-    document.getElementById("game").style.display = "block";
-    document.getElementById("playerName").innerText = pseudo;
+    document.getElementById("login").style.display="none";
+    document.getElementById("game").style.display="block";
+    document.getElementById("playerName").innerText=pseudo;
 
-    if (!isAdmin) {
-        set(ref(db, "players/" + pseudo), { score: 0 });
+    if(!isAdmin){
+        set(ref(db,"players/"+pseudo),{
+            score:0,
+            active:true
+        });
     } else {
-        document.getElementById("adminPanel").style.display = "block";
+        document.getElementById("adminPanel").style.display="block";
     }
 
     listenBuzz();
     listenScores();
+    listenActivity();
 }
 
-// 👉 buzzer
+// BUZZ
 window.buzz = function() {
-    if (hasBuzzed || isAdmin) return;
+    if(hasBuzzed || isAdmin) return;
 
-    hasBuzzed = true;
-
+    hasBuzzed=true;
     document.getElementById("buzzSound").play();
 
-    push(ref(db, "buzzers"), {
-        name: pseudo,
-        time: Date.now()
+    push(ref(db,"buzzers"),{
+        name:pseudo,
+        time:Date.now()
     });
 }
 
-// 👉 reset buzz
+// RESET
 window.resetBuzz = function() {
-    remove(ref(db, "buzzers"));
-    hasBuzzed = false;
+    remove(ref(db,"buzzers"));
+    hasBuzzed=false;
 }
 
-// 👉 écoute buzz
-function listenBuzz() {
-    onValue(ref(db, "buzzers"), snapshot => {
-        const list = document.getElementById("buzzList");
-        list.innerHTML = "";
+// SCORES
+function listenScores(){
+    onValue(ref(db,"players"),snap=>{
+        const list=document.getElementById("scoreList");
+        const admin=document.getElementById("adminScores");
 
-        let data = snapshot.val();
-        if (!data) return;
+        list.innerHTML="";
+        admin.innerHTML="";
 
-        let arr = Object.values(data);
-        arr.sort((a,b)=>a.time-b.time);
+        let data=snap.val();
+        if(!data)return;
 
-        arr.forEach((b,i)=>{
-            let li = document.createElement("li");
-            li.innerText = `${i+1}. ${b.name}`;
-            list.appendChild(li);
-        });
-    });
-}
-
-// 👉 scores + admin
-function listenScores() {
-    onValue(ref(db, "players"), snapshot => {
-        const list = document.getElementById("scoreList");
-        const adminDiv = document.getElementById("adminScores");
-
-        list.innerHTML = "";
-        adminDiv.innerHTML = "";
-
-        let data = snapshot.val();
-        if (!data) return;
-
-        let arr = Object.entries(data);
-        arr.sort((a,b)=>b[1].score - a[1].score);
+        let arr=Object.entries(data);
+        arr.sort((a,b)=>b[1].score-a[1].score);
 
         arr.forEach(([name,obj])=>{
-            let li = document.createElement("li");
-            li.innerText = `${name} : ${obj.score}`;
+            let li=document.createElement("li");
+            li.innerText=`${name} : ${obj.score}`;
             list.appendChild(li);
 
-            if (isAdmin) {
-                let btn = document.createElement("button");
-                btn.innerText = "+1 " + name;
-                btn.onclick = () => {
-                    update(ref(db, "players/" + name), {
-                        score: obj.score + 1
+            if(isAdmin){
+                let btn=document.createElement("button");
+                btn.innerText="+1 "+name;
+                btn.onclick=()=>{
+                    update(ref(db,"players/"+name),{
+                        score:obj.score+1
                     });
                 };
-                adminDiv.appendChild(btn);
+                admin.appendChild(btn);
             }
         });
     });
 }
 
-// 🚨 anti-fuite onglet
-document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-        alert("⚠️ Tu as quitté la page !");
-    }
-});
+// BUZZ LIST
+function listenBuzz(){
+    onValue(ref(db,"buzzers"),snap=>{
+        const list=document.getElementById("buzzList");
+        list.innerHTML="";
 
-// 🚨 quitter = suppression joueur
-window.addEventListener("beforeunload", () => {
-    if (pseudo && !isAdmin) {
-        remove(ref(db, "players/" + pseudo));
+        let data=snap.val();
+        if(!data)return;
+
+        let arr=Object.values(data);
+        arr.sort((a,b)=>a.time-b.time);
+
+        arr.forEach((b,i)=>{
+            let li=document.createElement("li");
+            li.innerText=`${i+1}. ${b.name}`;
+            list.appendChild(li);
+        });
+    });
+}
+
+// 👀 ACTIVITY TRACKING (onglet actif / inactif)
+function listenActivity(){
+    const activityList=document.getElementById("activityList");
+
+    // ping actif
+    setInterval(()=>{
+        if(!isAdmin && pseudo){
+            set(ref(db,"players/"+pseudo+"/active"),true);
+        }
+    },2000);
+
+    // détecte changement onglet
+    document.addEventListener("visibilitychange",()=>{
+        if(!isAdmin && pseudo){
+            set(ref(db,"players/"+pseudo+"/active"),!document.hidden);
+        }
+    });
+
+    onValue(ref(db,"players"),snap=>{
+        if(!isAdmin)return;
+
+        activityList.innerHTML="";
+
+        let data=snap.val();
+        if(!data)return;
+
+        Object.entries(data).forEach(([name,obj])=>{
+            let li=document.createElement("li");
+
+            if(obj.active===false){
+                li.innerText="⚠ "+name+" (inactif)";
+                li.classList.add("inactive");
+            } else {
+                li.innerText="🟢 "+name;
+            }
+
+            activityList.appendChild(li);
+        });
+    });
+}
+
+// QUITTER PAGE
+window.addEventListener("beforeunload",()=>{
+    if(pseudo && !isAdmin){
+        remove(ref(db,"players/"+pseudo));
     }
 });
 </script>
